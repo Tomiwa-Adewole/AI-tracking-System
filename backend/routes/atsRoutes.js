@@ -5,8 +5,8 @@ const pdfParse = require("pdf-parse");
 const fs = require("fs");
 const { GoogleGenAI } = require("@google/genai");
 
-const Job = require("../model/Job");
-const Candidate = require("../model/Candidate");
+const Job = require("../models/Job");
+const Candidate = require("../models/Candidate");
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -82,12 +82,10 @@ router.patch("/candidates/:id/status", async (req, res) => {
       return res.status(404).json({ error: "Candidate not found" });
     }
 
-    res
-      .status(200)
-      .json({
-        message: "Status updated successfully",
-        candidate: updatedCandidate,
-      });
+    res.status(200).json({
+      message: "Status updated successfully",
+      candidate: updatedCandidate,
+    });
   } catch (err) {
     console.error("Error updating candidate status:", err);
     res.status(500).json({ error: "Server error while updating status" });
@@ -183,22 +181,18 @@ router.post(
       });
 
       await newCandidate.save();
-      res
-        .status(201)
-        .json({
-          message: "Resume analyzed successfully",
-          candidate: newCandidate,
-        });
+      res.status(201).json({
+        message: "Resume analyzed successfully",
+        candidate: newCandidate,
+      });
     } catch (err) {
       console.error("Error analyzing resume:", err);
-      res
-        .status(500)
-        .json({
-          error:
-            err.status === 503
-              ? "AI model is experiencing high demand. Please try uploading again in a moment."
-              : "Failed to analyze resume with AI",
-        });
+      res.status(500).json({
+        error:
+          err.status === 503
+            ? "AI model is experiencing high demand. Please try uploading again in a moment."
+            : "Failed to analyze resume with AI",
+      });
     }
   },
 );
