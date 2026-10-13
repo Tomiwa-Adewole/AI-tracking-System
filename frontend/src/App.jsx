@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import Hero from "./components/Hero";
-import JobForm from "./components/jobForm.jsx";
+import JobForm from "./components/JobForm.jsx";
 import ResumeUploader from "./components/ResumeUploader";
-import CandidateLeaderboard from "./components/CandidateLeaderBoard.jsx";
+import CandidateLeaderboard from "./components/CandidateLeaderboard.jsx";
 import CandidateModal from "./components/CandidateModal";
 
 export default function AtsDashboard() {
