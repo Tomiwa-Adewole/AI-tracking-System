@@ -1,11 +1,21 @@
 import { useState, useRef } from "react";
 
-export default function ResumeUploader({ activeJob, onUploadSuccess }) {
+export default function ResumeUploader({
+  activeJob,
+  onUploadSuccess,
+  apiBaseUrl,
+}) {
   const [resumeFile, setResumeFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const fileInputRef = useRef(null);
+
+  // Dynamic API Base URL fallback
+  const API_BASE_URL =
+    apiBaseUrl ||
+    import.meta.env.VITE_API_BASE_URL ||
+    "https://ai-tracking-system.onrender.com";
 
   const handleUploadResume = async (e) => {
     e.preventDefault();
@@ -19,7 +29,7 @@ export default function ResumeUploader({ activeJob, onUploadSuccess }) {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/ats/upload-resume/${activeJob._id}`,
+        `${API_BASE_URL}/api/ats/upload-resume/${activeJob._id || activeJob.id}`,
         {
           method: "POST",
           body: formData,
@@ -31,7 +41,7 @@ export default function ResumeUploader({ activeJob, onUploadSuccess }) {
         setUploadResult(data.candidate);
         alert("Resume analyzed and scored successfully by AI!");
         setResumeFile(null);
-        onUploadSuccess();
+        if (onUploadSuccess) onUploadSuccess();
       } else {
         alert(data.error || "Failed to analyze resume.");
       }

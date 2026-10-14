@@ -1,88 +1,99 @@
-import { useEffect, useState } from "react";
-import Hero from "./components/Hero";
+import { useState } from "react";
+import Hero from "./components/Hero.jsx";
 import JobForm from "./components/JobForm.jsx";
-import ResumeUploader from "./components/ResumeUploader";
+import ResumeUploader from "./components/ResumeUploader.jsx";
 import CandidateLeaderboard from "./components/CandidateLeaderboard.jsx";
-import CandidateModal from "./components/CandidateModal";
+import CandidateModal from "./components/CandidateModal.jsx";
 
-export default function AtsDashboard() {
-  const [activeJob, setActiveJob] = useState(() => {
-    const saved = localStorage.getItem("ats_active_job");
-    return saved ? JSON.parse(saved) : null;
-  });
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://ai-tracking-system.onrender.com";
 
+export default function App() {
+  const [selectedJob, setSelectedJob] = useState(null);
   const [candidates, setCandidates] = useState([]);
-  const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const fetchCandidates = async (jobId) => {
     if (!jobId) return;
-    setLoadingCandidates(true);
     try {
+      setLoading(true);
       const response = await fetch(
-        `http://localhost:5000/api/ats/candidates/${jobId}`,
+        `${API_BASE_URL}/api/ats/candidates/${jobId}`,
       );
       const data = await response.json();
-      if (response.ok) {
-        setCandidates(data);
-      }
+      setCandidates(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching candidates:", err);
     } finally {
-      setLoadingCandidates(false);
+      setLoading(false);
     }
   };
 
-  const handleJobChange = (nextJob) => {
-    setActiveJob(nextJob);
-
-    if (nextJob) {
-      localStorage.setItem("ats_active_job", JSON.stringify(nextJob));
-      fetchCandidates(nextJob._id);
-    } else {
-      localStorage.removeItem("ats_active_job");
-      setCandidates([]);
+  const handleJobCreated = (job) => {
+    setSelectedJob(job);
+    const jobId = job?._id || job?.id;
+    if (jobId) {
+      fetchCandidates(jobId);
     }
   };
 
-  useEffect(() => {
-    if (activeJob) {
-      localStorage.setItem("ats_active_job", JSON.stringify(activeJob));
-    } else {
-      localStorage.removeItem("ats_active_job");
+  const handleRefresh = () => {
+    const jobId = selectedJob?._id || selectedJob?.id;
+    if (jobId) {
+      fetchCandidates(jobId);
     }
-  }, [activeJob]);
+  };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-700 antialiased pb-16">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-12">
+      {/* Light Theme Hero Header */}
       <Hero />
 
-      <div className="max-w-4xl mx-auto px-6 mt-8 space-y-8">
-        <JobForm activeJob={activeJob} setActiveJob={handleJobChange} />
-
-        {activeJob && (
-          <ResumeUploader
-            activeJob={activeJob}
-            onUploadSuccess={() => fetchCandidates(activeJob._id)}
-          />
-        )}
-
-        {activeJob && (
-          <CandidateLeaderboard
-            candidates={candidates}
-            loading={loadingCandidates}
-            onRefresh={() => fetchCandidates(activeJob._id)}
-            onSelectCandidate={setSelectedCandidate}
-          />
-        )}
-      </div>
-
-      {selectedCandidate && (
-        <CandidateModal
-          candidate={selectedCandidate}
-          onClose={() => setSelectedCandidate(null)}
+      <main className="max-w-4xl mx-auto px-6 space-y-6">
+        <JobForm
+          onJobCreated={handleJobCreated}
+          activeJob={selectedJob}
+          setActiveJob={setSelectedJob}
+          apiBaseUrl={API_BASE_URL}
         />
-      )}
+
+        {selectedJob && (
+          <div className="space-y-6">
+            <ResumeUploader
+              activeJob={selectedJob}
+              onUploadSuccess={handleRefresh}
+              apiBaseUrl={API_BASE_URL}
+            />
+
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
+              <h2 className="text-xl font-semibold text-indigo-600 mb-2">
+                Active Pipeline: {selectedJob.title}
+              </h2>
+              <p className="text-slate-600 text-sm mb-6">
+                {selectedJob.description}
+              </p>
+
+              <CandidateLeaderboard
+                candidates={candidates}
+                loading={loading}
+                onSelectCandidate={setSelectedCandidate}
+                onRefresh={handleRefresh}
+                apiBaseUrl={API_BASE_URL}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Candidate Detail Modal */}
+        {selectedCandidate && (
+          <CandidateModal
+            candidate={selectedCandidate}
+            onClose={() => setSelectedCandidate(null)}
+          />
+        )}
+      </main>
     </div>
   );
 }

@@ -4,15 +4,21 @@ export default function CandidateLeaderboard({
   candidates,
   onSelectCandidate,
   onRefresh,
+  apiBaseUrl,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+
+  const API_BASE_URL =
+    apiBaseUrl ||
+    import.meta.env.VITE_API_BASE_URL ||
+    "https://ai-tracking-system.onrender.com";
 
   const handleStatusChange = async (candidateId, newStatus, e) => {
     e.stopPropagation(); // Prevent opening the candidate modal
     try {
       const response = await fetch(
-        `http://localhost:5000/api/ats/candidates/${candidateId}/status`,
+        `${API_BASE_URL}/api/ats/candidates/${candidateId}/status`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

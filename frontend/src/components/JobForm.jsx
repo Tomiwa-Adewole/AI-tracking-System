@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 
-export default function JobForm({ activeJob, setActiveJob }) {
+export default function JobForm({
+  activeJob,
+  setActiveJob,
+  apiBaseUrl,
+  onJobCreated,
+}) {
   const [jobs, setJobs] = useState([]);
   const [jobForm, setJobForm] = useState({
     title: "",
@@ -10,21 +15,27 @@ export default function JobForm({ activeJob, setActiveJob }) {
   });
   const [loadingJob, setLoadingJob] = useState(false);
 
+  // Dynamic API Base URL fallback
+  const API_BASE_URL =
+    apiBaseUrl ||
+    import.meta.env.VITE_API_BASE_URL ||
+    "https://ai-tracking-system.onrender.com";
+
   // Fetch all existing jobs on mount
   useEffect(() => {
     const fetchAllJobs = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/ats/jobs");
+        const response = await fetch(`${API_BASE_URL}/api/ats/jobs`);
         const data = await response.json();
         if (response.ok) {
-          setJobs(data);
+          setJobs(Array.isArray(data) ? data : []);
         }
       } catch (err) {
         console.error("Error fetching job list:", err);
       }
     };
     fetchAllJobs();
-  }, []);
+  }, [API_BASE_URL]);
 
   const handleCreateJob = async (e) => {
     e.preventDefault();
@@ -35,7 +46,7 @@ export default function JobForm({ activeJob, setActiveJob }) {
         .map((s) => s.trim())
         .filter(Boolean);
 
-      const response = await fetch("http://localhost:5000/api/ats/create-job", {
+      const response = await fetch(`${API_BASE_URL}/api/ats/create-job`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -46,7 +57,9 @@ export default function JobForm({ activeJob, setActiveJob }) {
 
       const data = await response.json();
       if (response.ok) {
-        setActiveJob(data.job);
+        if (setActiveJob) setActiveJob(data.job);
+        if (onJobCreated) onJobCreated(data.job);
+
         setJobs((prev) => [data.job, ...prev]); // instantly update dropdown list
         setJobForm({
           title: "",
@@ -69,12 +82,14 @@ export default function JobForm({ activeJob, setActiveJob }) {
   const handleSelectChange = (e) => {
     const selectedId = e.target.value;
     if (!selectedId) {
-      setActiveJob(null);
+      if (setActiveJob) setActiveJob(null);
+      if (onJobCreated) onJobCreated(null);
       return;
     }
     const foundJob = jobs.find((j) => j._id === selectedId);
     if (foundJob) {
-      setActiveJob(foundJob);
+      if (setActiveJob) setActiveJob(foundJob);
+      if (onJobCreated) onJobCreated(foundJob);
     }
   };
 
@@ -206,7 +221,12 @@ export default function JobForm({ activeJob, setActiveJob }) {
             ({activeJob.department})
           </div>
           <span className="text-xs px-2.5 py-1 bg-white border border-indigo-200 text-indigo-600 rounded-lg font-mono">
-            ID: {activeJob._id.slice(-6)}
+            ID:{" "}
+            {activeJob._id
+              ? activeJob._id.slice(-6)
+              : activeJob.id
+                ? activeJob.id.slice(-6)
+                : ""}
           </span>
         </div>
       )}

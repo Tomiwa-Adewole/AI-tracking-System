@@ -19,20 +19,24 @@ if (!mongoUri) {
   process.exit(1);
 }
 
-mongoose
-  .connect(mongoUri)
-  .then(() => console.log("Connected to MongoDB successfully!"))
-  .catch((err) => console.error("MongoDB connection error:", err));
-
 // Import and use ATS Routes
 const atsRoutes = require("./routes/atsRoutes");
-
 app.use("/api/ats", atsRoutes);
 
 app.get("/", (req, res) => {
   res.send("AI-Powered ATS Backend is running!");
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// Connect to MongoDB first, then start the server
+mongoose
+  .connect(mongoUri)
+  .then(() => {
+    console.log("Connected to MongoDB successfully!");
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("MongoDB connection error:", err);
+    process.exit(1); // Exit process if database connection fails
+  });
