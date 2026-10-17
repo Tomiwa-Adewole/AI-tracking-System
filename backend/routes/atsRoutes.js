@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const fs = require("fs");
-const { GoogleGenAI } = require("@google/genai");
+const { GoogleGenAI, Type } = require("@google/genai");
 
 const Job = require("../models/Job");
 const Candidate = require("../models/Candidate");
@@ -11,10 +11,57 @@ const Candidate = require("../models/Candidate");
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Configure multer for temporary file uploads
-const upload = multer({ dest: "uploads/" });
+// Configure Multer with strict 10MB size limit & combined MIME + Extension filter
+const upload = multer({
+  dest: "uploads/",
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
+  fileFilter: (req, file, cb) => {
+    const isPdfMime = file.mimetype === "application/pdf";
+    const hasPdfExtension = file.originalname.toLowerCase().endsWith(".pdf");
 
-// 1. Get all job openings (for the multi-job dropdown selector)
+    // Require both genuine PDF MIME type AND .pdf extension
+    if (isPdfMime && hasPdfExtension) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error("Invalid file type: Only genuine PDF documents are allowed."),
+        false,
+      );
+    }
+  },
+});
+
+// Custom middleware to guarantee JSON error responses for upload failures (like size limits or invalid file types)
+const handleUploadMiddleware = (req, res, next) => {
+  upload.single("resume")(req, res, (err) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({ error: "File size exceeds the 10 MB limit." });
+      }
+      return res
+        .status(400)
+        .json({ error: err.message || "File upload error." });
+    }
+    next();
+  });
+};
+
+// Helper function to check real PDF magic bytes (%PDF-)
+const isValidPdfContent = (filePath) => {
+  try {
+    const buffer = Buffer.alloc(5);
+    const fd = fs.openSync(filePath, "r");
+    fs.readSync(fd, buffer, 0, 5, 0);
+    fs.closeSync(fd);
+    return buffer.toString("utf8") === "%PDF-";
+  } catch (err) {
+    return false;
+  }
+};
+
+// 1. Get all job openings
 router.get("/jobs", async (req, res) => {
   try {
     const jobs = await Job.find().sort({ createdAt: -1 });
@@ -28,12 +75,21 @@ router.get("/jobs", async (req, res) => {
 // 2. Create a new job opening
 router.post("/create-job", async (req, res) => {
   try {
-    const { title, department, description, requiredSkills } = req.body;
-    const newJob = new Job({
+    const {
       title,
       department,
       description,
       requiredSkills,
+      mustHaves,
+      weightedSkills,
+    } = req.body;
+    const newJob = new Job({
+      title,
+      department,
+      description,
+      requiredSkills: requiredSkills || [],
+      mustHaves: mustHaves || [],
+      weightedSkills: weightedSkills || [],
     });
     await newJob.save();
     res.status(201).json({ message: "Job created successfully", job: newJob });
@@ -67,6 +123,7 @@ router.patch("/candidates/:id/status", async (req, res) => {
       "Interviewing",
       "Hired",
       "Rejected",
+      "Disqualified",
     ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: "Invalid pipeline status" });
@@ -92,71 +149,136 @@ router.patch("/candidates/:id/status", async (req, res) => {
   }
 });
 
-// 5. Upload and analyze resume using Gemini AI with automatic retry for 503 high demand
+// 5. Upload and analyze resume using Gemini AI with Weighted Skill Logic & Hard Gates
 router.post(
   "/upload-resume/:jobId",
-  upload.single("resume"),
+  handleUploadMiddleware,
   async (req, res) => {
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ error: "No resume file provided or invalid file type." });
+    }
+
+    const filePath = req.file.path;
+
+    // Strict content validation: Check actual file header (magic bytes)
+    if (!isValidPdfContent(filePath)) {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return res
+        .status(400)
+        .json({
+          error: "Invalid file content: File is not a genuine PDF document.",
+        });
+    }
+
     try {
       const { jobId } = req.params;
-      if (!req.file) {
-        return res.status(400).json({ error: "No resume file provided" });
-      }
-
       const job = await Job.findById(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job opening not found" });
       }
 
       // Read PDF text
-      const dataBuffer = fs.readFileSync(req.file.path);
+      const dataBuffer = fs.readFileSync(filePath);
       const pdfData = await pdfParse(dataBuffer);
       const resumeText = pdfData.text;
 
-      // Clean up temporary uploaded file from disk
-      fs.unlinkSync(req.file.path);
+      // Define strict Gemini Response Schema
+      const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          email: { type: Type.STRING },
+          mustHavesMet: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                requirement: { type: Type.STRING },
+                isMet: { type: Type.BOOLEAN },
+                evidence: { type: Type.STRING },
+              },
+              required: ["requirement", "isMet"],
+            },
+          },
+          skillAssessments: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                skill: { type: Type.STRING },
+                foundInResume: { type: Type.BOOLEAN },
+                proficiencyLevel: { type: Type.STRING },
+              },
+              required: ["skill", "foundInResume"],
+            },
+          },
+          parsedData: {
+            type: Type.OBJECT,
+            properties: {
+              summary: { type: Type.STRING },
+              skills: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+            },
+            required: ["summary", "skills"],
+          },
+          aiFeedback: { type: Type.STRING },
+        },
+        required: [
+          "name",
+          "email",
+          "mustHavesMet",
+          "skillAssessments",
+          "parsedData",
+          "aiFeedback",
+        ],
+      };
+
+      const mustHaveList = job.mustHaves || [];
+      const weightedSkillsList = job.weightedSkills || [];
+      const requiredSkillsList = job.requiredSkills || [];
+
+      const evaluationSkills =
+        weightedSkillsList.length > 0
+          ? weightedSkillsList.map((s) => s.skill)
+          : requiredSkillsList;
 
       const prompt = `
-      You are an expert ATS (Applicant Tracking System) recruiter.
-      Analyze this resume against the job description and required skills.
+      You are an expert ATS recruiter. Analyze this resume text against the job description and evaluation criteria.
 
+      JOB DETAILS:
       Job Title: ${job.title}
       Job Description: ${job.description}
-      Required Skills: ${job.requiredSkills.join(", ")}
+      Must-Have Criteria (Hard Gates): ${JSON.stringify(mustHaveList)}
+      Target Skills to Assess: ${JSON.stringify(evaluationSkills)}
 
-      Resume Text:
+      RESUME TEXT:
       ${resumeText}
 
-      Provide your evaluation strictly in the following JSON format:
-      {
-        "name": "Candidate Full Name",
-        "email": "Candidate Email Address",
-        "matchScore": <number between 0 and 100>,
-        "parsedData": {
-          "summary": "Short 2-3 sentence professional summary",
-          "skills": ["skill1", "skill2", ...]
-        },
-        "aiFeedback": "Detailed breakdown of why this candidate is a good or poor fit, highlighting strengths and missing requirements."
-      }
-    `;
+      INSTRUCTIONS:
+      1. Extract the candidate's name and email.
+      2. Evaluate each item in Must-Have Criteria and specify whether it is met (isMet: true/false) along with evidence.
+      3. Evaluate each skill in Target Skills to Assess and report whether it was found in the resume.
+      4. Provide a 2-3 sentence summary and list all detected technical skills.
+      5. Provide an objective recruiter summary in aiFeedback.
+      `;
 
-      // Helper function with retry logic for 503 high demand errors
       const generateWithRetry = async (retries = 3, delay = 2000) => {
         for (let i = 0; i < retries; i++) {
           try {
-            const response = await ai.models.generateContent({
+            return await ai.models.generateContent({
               model: "gemini-3.8-flash",
               contents: prompt,
               config: {
                 responseMimeType: "application/json",
+                responseSchema: responseSchema,
               },
             });
-            return response;
           } catch (err) {
             if (err.status === 503 && i < retries - 1) {
-              console.warn(
-                `Gemini high demand (503). Retrying in ${delay / 1000}s... (Attempt ${i + 1}/${retries})`,
-              );
               await new Promise((resolve) => setTimeout(resolve, delay));
               delay *= 2;
             } else {
@@ -169,30 +291,78 @@ router.post(
       const response = await generateWithRetry();
       const aiResult = JSON.parse(response.text);
 
-      // Save candidate to MongoDB
+      // --- DETERMINISTIC SCORING & HARD GATE LOGIC ---
+      const failedMustHaves = (aiResult.mustHavesMet || []).filter(
+        (item) => !item.isMet,
+      );
+      const passedHardGates = failedMustHaves.length === 0;
+
+      let calculatedScore = 70;
+
+      if (weightedSkillsList.length > 0) {
+        let totalPossibleWeight = 0;
+        let earnedWeight = 0;
+
+        weightedSkillsList.forEach((reqSkill) => {
+          const weight = reqSkill.weight || 1;
+          totalPossibleWeight += weight;
+
+          const detected = (aiResult.skillAssessments || []).find(
+            (s) =>
+              s.skill.toLowerCase() === reqSkill.skill.toLowerCase() &&
+              s.foundInResume,
+          );
+          if (detected) earnedWeight += weight;
+        });
+
+        calculatedScore =
+          totalPossibleWeight > 0
+            ? Math.round((earnedWeight / totalPossibleWeight) * 100)
+            : 70;
+      } else if (requiredSkillsList.length > 0) {
+        let matchedCount = 0;
+        requiredSkillsList.forEach((reqSkill) => {
+          const detected = (aiResult.skillAssessments || []).find(
+            (s) =>
+              s.skill.toLowerCase() === reqSkill.toLowerCase() &&
+              s.foundInResume,
+          );
+          if (detected) matchedCount++;
+        });
+        calculatedScore = Math.round(
+          (matchedCount / requiredSkillsList.length) * 100,
+        );
+      }
+
+      const candidateStatus = !passedHardGates ? "Disqualified" : "Applied";
+
       const newCandidate = new Candidate({
         jobId,
         name: aiResult.name || "Unknown Candidate",
         email: aiResult.email || "",
-        matchScore: aiResult.matchScore || 0,
+        matchScore: calculatedScore,
+        passedHardGates,
+        failedMustHaves,
         parsedData: aiResult.parsedData || { summary: "", skills: [] },
         aiFeedback: aiResult.aiFeedback || "No feedback provided",
-        status: "Applied",
+        status: candidateStatus,
       });
 
       await newCandidate.save();
-      res.status(201).json({
+      return res.status(201).json({
         message: "Resume analyzed successfully",
         candidate: newCandidate,
       });
     } catch (err) {
       console.error("Error analyzing resume:", err);
-      res.status(500).json({
-        error:
-          err.status === 503
-            ? "AI model is experiencing high demand. Please try uploading again in a moment."
-            : "Failed to analyze resume with AI",
-      });
+      return res
+        .status(500)
+        .json({ error: err.message || "Failed to analyze resume" });
+    } finally {
+      // Guaranteed disk cleanup for temporary uploaded PDF file
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
   },
 );

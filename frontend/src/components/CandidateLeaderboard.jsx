@@ -1,5 +1,14 @@
 import { useState } from "react";
 
+const VALID_STATUSES = [
+  "Applied",
+  "Shortlisted",
+  "Interviewing",
+  "Hired",
+  "Rejected",
+  "Disqualified",
+];
+
 export default function CandidateLeaderboard({
   candidates,
   onSelectCandidate,
@@ -91,6 +100,7 @@ export default function CandidateLeaderboard({
             <option value="Interviewing">Interviewing</option>
             <option value="Hired">Hired</option>
             <option value="Rejected">Rejected</option>
+            <option value="Disqualified">Disqualified</option>
           </select>
         </div>
       </div>
@@ -131,22 +141,24 @@ export default function CandidateLeaderboard({
                   }
                   onClick={(e) => e.stopPropagation()}
                   className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border outline-none cursor-pointer transition ${
-                    candidate.status === "Hired"
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                      : candidate.status === "Rejected"
-                        ? "bg-rose-50 border-rose-200 text-rose-700"
-                        : candidate.status === "Interviewing"
-                          ? "bg-amber-50 border-amber-200 text-amber-700"
-                          : candidate.status === "Shortlisted"
-                            ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                            : "bg-slate-50 border-slate-200 text-slate-700"
+                    candidate.status === "Disqualified"
+                      ? "bg-red-100 border-red-300 text-red-800"
+                      : candidate.status === "Hired"
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                        : candidate.status === "Rejected"
+                          ? "bg-rose-50 border-rose-200 text-rose-700"
+                          : candidate.status === "Interviewing"
+                            ? "bg-amber-50 border-amber-200 text-amber-700"
+                            : candidate.status === "Shortlisted"
+                              ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                              : "bg-slate-50 border-slate-200 text-slate-700"
                   }`}
                 >
-                  <option value="Applied">Applied</option>
-                  <option value="Shortlisted">Shortlisted</option>
-                  <option value="Interviewing">Interviewing</option>
-                  <option value="Hired">Hired</option>
-                  <option value="Rejected">Rejected</option>
+                  {VALID_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
                 </select>
 
                 {/* Match Score Badge */}

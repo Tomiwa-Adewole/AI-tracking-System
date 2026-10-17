@@ -5,14 +5,29 @@ const candidateSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String },
   matchScore: { type: Number, required: true },
+  passedHardGates: { type: Boolean, default: true },
+  failedMustHaves: [
+    {
+      requirement: { type: String },
+      isMet: { type: Boolean },
+      evidence: { type: String },
+    },
+  ],
   parsedData: {
-    summary: String,
-    skills: [String],
+    summary: { type: String },
+    skills: [{ type: String }],
   },
-  aiFeedback: String,
+  aiFeedback: { type: String },
   status: {
     type: String,
-    enum: ["Applied", "Shortlisted", "Interviewing", "Hired", "Rejected"],
+    enum: [
+      "Applied",
+      "Shortlisted",
+      "Interviewing",
+      "Hired",
+      "Rejected",
+      "Disqualified",
+    ],
     default: "Applied",
   },
   createdAt: { type: Date, default: Date.now },
