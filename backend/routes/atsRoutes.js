@@ -268,7 +268,7 @@ router.post(
         for (let i = 0; i < retries; i++) {
           try {
             return await ai.models.generateContent({
-              model: "gemini-3.8-flash",
+              model: "gemini-3.5-flash-lite",
               contents: prompt,
               config: {
                 responseMimeType: "application/json",
@@ -291,12 +291,12 @@ router.post(
               const jitter = Math.random() * 1000;
               const waitTime = delay + jitter;
               console.warn(
-                `[Gemini 3.8 Flash Retry ${i + 1}/${retries}] Model busy/rate-limited. Waiting ${Math.round(waitTime)}ms...`,
+                `[Gemini 3.5 Flash Lite Retry ${i + 1}/${retries}] Model busy/rate-limited. Waiting ${Math.round(waitTime)}ms...`,
               );
               await new Promise((resolve) => setTimeout(resolve, waitTime));
               delay *= 2;
             } else {
-              console.error("Gemini 3.8 Flash Final Error:", err);
+              console.error("Gemini 3.5 Flash Lite Final Error:", err);
               throw err;
             }
           }
