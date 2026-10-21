@@ -1,4 +1,6 @@
-export default function CandidateModal({ candidate, onClose }) {
+import CandidateInterviewKit from "./CandidateInterviewKit.jsx";
+
+export default function CandidateModal({ candidate, onClose, apiBaseUrl }) {
   if (!candidate) return null;
 
   return (
@@ -63,6 +65,13 @@ export default function CandidateModal({ candidate, onClose }) {
               {candidate.aiFeedback}
             </div>
           </div>
+
+          <CandidateInterviewKit
+            key={candidate._id}
+            candidateId={candidate._id}
+            existingQuestions={candidate.interviewQuestions || []}
+            apiBaseUrl={apiBaseUrl}
+          />
         </div>
 
         <div className="flex justify-end pt-4 border-t border-slate-100">

@@ -17,6 +17,14 @@ const candidateSchema = new mongoose.Schema({
     summary: { type: String },
     skills: [{ type: String }],
   },
+  interviewQuestions: [
+    {
+      category: { type: String, required: true },
+      question: { type: String, required: true },
+      difficulty: { type: String, required: true },
+      expectedKeyPoints: [{ type: String }],
+    },
+  ],
   aiFeedback: { type: String },
   status: {
     type: String,

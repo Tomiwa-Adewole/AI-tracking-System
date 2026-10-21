@@ -149,6 +149,86 @@ router.patch("/candidates/:id/status", async (req, res) => {
   }
 });
 
+// 5. Generate tailored interview questions for a candidate
+router.post("/candidates/:id/generate-questions", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.params.id);
+    if (!candidate) {
+      return res.status(404).json({ error: "Candidate not found" });
+    }
+
+    const job = await Job.findById(candidate.jobId);
+    if (!job) {
+      return res.status(404).json({ error: "Job opening not found" });
+    }
+
+    const candidateSummary = candidate.parsedData?.summary || "Not provided";
+    const candidateSkills = candidate.parsedData?.skills || [];
+    const mustHaves = job.mustHaves || [];
+    const prompt = `
+      You are an expert technical interviewer. Generate 4-5 tailored interview questions for a candidate applying for the position of "${job.title}".
+
+      Candidate experience summary: ${candidateSummary}
+      Extracted candidate skills: ${candidateSkills.join(", ") || "Not provided"}
+      Job requirements: ${mustHaves.join(", ") || "Not provided"}
+      Job description: ${job.description || "Not provided"}
+
+      Tailor questions to verify claimed experience. Include technical deep dives and behavioral or scenario questions based on the candidate's experience. For each question, include an evaluation guide describing what a strong answer should cover. Return only the requested structured data.
+    `;
+
+    const responseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        questions: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              category: { type: Type.STRING },
+              question: { type: Type.STRING },
+              difficulty: { type: Type.STRING },
+              expectedKeyPoints: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+            },
+            required: [
+              "category",
+              "question",
+              "difficulty",
+              "expectedKeyPoints",
+            ],
+          },
+        },
+      },
+      required: ["questions"],
+    };
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash-lite",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema,
+      },
+    });
+
+    const result = JSON.parse(response.text);
+    candidate.interviewQuestions = result.questions;
+    await candidate.save();
+
+    return res.status(200).json({
+      success: true,
+      questions: candidate.interviewQuestions,
+    });
+  } catch (err) {
+    console.error("Error generating interview questions:", err);
+    return res.status(500).json({
+      error: err.message || "Failed to generate interview questions.",
+    });
+  }
+});
+
 // 5. Upload and analyze resume using Gemini AI with Weighted Skill Logic & Hard Gates
 router.post(
   "/upload-resume/:jobId",

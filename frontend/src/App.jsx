@@ -91,6 +91,7 @@ export default function App() {
           <CandidateModal
             candidate={selectedCandidate}
             onClose={() => setSelectedCandidate(null)}
+            apiBaseUrl={API_BASE_URL}
           />
         )}
       </main>
