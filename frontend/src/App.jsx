@@ -4,6 +4,7 @@ import JobForm from "./components/JobForm.jsx";
 import ResumeUploader from "./components/ResumeUploader.jsx";
 import CandidateLeaderboard from "./components/CandidateLeaderboard.jsx";
 import CandidateModal from "./components/CandidateModal.jsx";
+import CandidateAnalytics from "./components/CandidateAnalytics.jsx";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -71,9 +72,14 @@ export default function App() {
               <h2 className="text-xl font-semibold text-indigo-600 mb-2">
                 Active Pipeline: {selectedJob.title}
               </h2>
+              <p className="mb-4 text-xs font-medium text-indigo-600">
+                Dashboard analytics and candidate actions are shown below.
+              </p>
               <p className="text-slate-600 text-sm mb-6">
                 {selectedJob.description}
               </p>
+
+              <CandidateAnalytics candidates={candidates} />
 
               <CandidateLeaderboard
                 candidates={candidates}

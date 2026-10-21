@@ -1,7 +1,20 @@
+import { useState } from "react";
 import CandidateInterviewKit from "./CandidateInterviewKit.jsx";
 
 export default function CandidateModal({ candidate, onClose, apiBaseUrl }) {
+  const [isBlindMode, setIsBlindMode] = useState(false);
+
   if (!candidate) return null;
+
+  const candidateSuffix = String(candidate._id || "")
+    .slice(-4)
+    .toUpperCase();
+  const displayName = isBlindMode
+    ? `Candidate #${candidateSuffix || "UNKNOWN"}`
+    : candidate.name;
+  const displayEmail = isBlindMode
+    ? "••••••••••••"
+    : candidate.email || "No email provided";
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -12,11 +25,18 @@ export default function CandidateModal({ candidate, onClose, apiBaseUrl }) {
               Candidate Profile
             </span>
             <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">
-              {candidate.name}
+              {displayName}
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {candidate.email || "No email provided"}
-            </p>
+            <p className="text-xs text-slate-400 mt-0.5">{displayEmail}</p>
+            <label className="mt-3 inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isBlindMode}
+                onChange={(event) => setIsBlindMode(event.target.checked)}
+                className="rounded text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="font-medium">Blind Screening Mode</span>
+            </label>
           </div>
           <span
             className={`px-3.5 py-1.5 rounded-full text-sm font-extrabold ${
