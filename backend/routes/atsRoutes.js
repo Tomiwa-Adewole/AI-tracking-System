@@ -165,11 +165,9 @@ router.post(
     // Strict content validation: Check actual file header (magic bytes)
     if (!isValidPdfContent(filePath)) {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      return res
-        .status(400)
-        .json({
-          error: "Invalid file content: File is not a genuine PDF document.",
-        });
+      return res.status(400).json({
+        error: "Invalid file content: File is not a genuine PDF document.",
+      });
     }
 
     try {
@@ -266,7 +264,7 @@ router.post(
       5. Provide an objective recruiter summary in aiFeedback.
       `;
 
-      const generateWithRetry = async (retries = 3, delay = 2000) => {
+      const generateWithRetry = async (retries = 5, delay = 3000) => {
         for (let i = 0; i < retries; i++) {
           try {
             return await ai.models.generateContent({
@@ -278,10 +276,27 @@ router.post(
               },
             });
           } catch (err) {
-            if (err.status === 503 && i < retries - 1) {
-              await new Promise((resolve) => setTimeout(resolve, delay));
+            const message = err?.message || "";
+            const isTransient =
+              err?.status === 503 ||
+              err?.status === 429 ||
+              err?.status === 504 ||
+              err?.code === 503 ||
+              err?.code === 429 ||
+              message.includes("overloaded") ||
+              message.includes("high demand") ||
+              message.includes("RESOURCE_EXHAUSTED");
+
+            if (isTransient && i < retries - 1) {
+              const jitter = Math.random() * 1000;
+              const waitTime = delay + jitter;
+              console.warn(
+                `[Gemini 3.8 Flash Retry ${i + 1}/${retries}] Model busy/rate-limited. Waiting ${Math.round(waitTime)}ms...`,
+              );
+              await new Promise((resolve) => setTimeout(resolve, waitTime));
               delay *= 2;
             } else {
+              console.error("Gemini 3.8 Flash Final Error:", err);
               throw err;
             }
           }
