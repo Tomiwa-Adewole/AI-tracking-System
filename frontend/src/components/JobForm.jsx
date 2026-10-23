@@ -1,11 +1,7 @@
 import { useState } from "react";
+import { API_BASE_URL, apiFetch, readJson } from "../lib/config.js";
 
-export default function JobForm({
-  onJobCreated,
-  apiBaseUrl,
-  activeJob,
-  setActiveJob,
-}) {
+export default function JobForm({ onJobCreated, activeJob }) {
   const [formData, setFormData] = useState({
     title: "",
     department: "",
@@ -22,13 +18,17 @@ export default function JobForm({
   const [submitting, setSubmitting] = useState(false);
 
   const handleAddWeightedSkill = () => {
-    setWeightedSkills([...weightedSkills, { skill: "", weight: 1 }]);
+    setWeightedSkills((current) => [...current, { skill: "", weight: 1 }]);
   };
 
   const handleWeightedSkillChange = (index, field, value) => {
-    const updated = [...weightedSkills];
-    updated[index][field] = field === "weight" ? Number(value) : value;
-    setWeightedSkills(updated);
+    setWeightedSkills((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index
+          ? { ...item, [field]: field === "weight" ? Number(value) : value }
+          : item,
+      ),
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -36,11 +36,6 @@ export default function JobForm({
     setErrorMsg(null);
     setSuccessMsg(null);
     setSubmitting(true);
-
-    const baseUrl =
-      apiBaseUrl ||
-      import.meta.env.VITE_API_BASE_URL ||
-      "http://localhost:5000";
 
     const payload = {
       title: formData.title,
@@ -58,20 +53,13 @@ export default function JobForm({
     };
 
     try {
-      const res = await fetch(`${baseUrl}/api/ats/create-job`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ats/create-job`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const contentType = res.headers.get("content-type");
-      let data;
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error(text || "Server returned an unexpected response.");
-      }
+      const data = await readJson(res);
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to create job opening.");
@@ -79,11 +67,6 @@ export default function JobForm({
 
       setSuccessMsg("Job opening created successfully!");
       if (onJobCreated) onJobCreated(data.job);
-
-      // Automatically select the newly created job if setActiveJob is provided
-      if (setActiveJob) {
-        setActiveJob(data.job);
-      }
 
       setFormData({
         title: "",
@@ -228,6 +211,19 @@ export default function JobForm({
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() =>
+                setWeightedSkills((current) =>
+                  current.filter((_, itemIndex) => itemIndex !== idx),
+                )
+              }
+              disabled={weightedSkills.length === 1}
+              aria-label={`Remove ${item.skill || "skill"}`}
+              className="rounded-lg border px-3 text-sm text-slate-600 disabled:opacity-40"
+            >
+              Remove
+            </button>
           </div>
         ))}
         <button

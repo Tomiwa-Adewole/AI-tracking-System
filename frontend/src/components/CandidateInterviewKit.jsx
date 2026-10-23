@@ -1,29 +1,25 @@
 import { useState } from "react";
+import { API_BASE_URL, apiFetch, readJson } from "../lib/config.js";
 
 export default function CandidateInterviewKit({
   candidateId,
   existingQuestions = [],
-  apiBaseUrl,
+  onQuestionsGenerated,
 }) {
   const [questions, setQuestions] = useState(existingQuestions);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const API_BASE_URL =
-    apiBaseUrl ||
-    import.meta.env.VITE_API_BASE_URL ||
-    "https://ai-tracking-system.onrender.com";
 
   const handleGenerate = async () => {
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${API_BASE_URL}/api/ats/candidates/${candidateId}/generate-questions`,
         { method: "POST" },
       );
-      const data = await response.json();
+      const data = await readJson(response);
 
       if (!response.ok) {
         throw new Error(
@@ -32,6 +28,7 @@ export default function CandidateInterviewKit({
       }
 
       setQuestions(Array.isArray(data.questions) ? data.questions : []);
+      if (onQuestionsGenerated) await onQuestionsGenerated();
     } catch (err) {
       setError(
         err.message || "Failed to generate questions. Please try again.",

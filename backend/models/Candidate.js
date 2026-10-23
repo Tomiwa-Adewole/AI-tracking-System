@@ -1,10 +1,16 @@
 const mongoose = require("mongoose");
+const { STATUSES } = require("../constants");
 
 const candidateSchema = new mongoose.Schema({
-  jobId: { type: mongoose.Schema.Types.ObjectId, ref: "Job", required: true },
+  jobId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Job",
+    required: true,
+    index: true,
+  },
   name: { type: String, required: true },
   email: { type: String },
-  matchScore: { type: Number, required: true },
+  matchScore: { type: Number, required: true, min: 0, max: 100 },
   passedHardGates: { type: Boolean, default: true },
   failedMustHaves: [
     {
@@ -28,14 +34,7 @@ const candidateSchema = new mongoose.Schema({
   aiFeedback: { type: String },
   status: {
     type: String,
-    enum: [
-      "Applied",
-      "Shortlisted",
-      "Interviewing",
-      "Hired",
-      "Rejected",
-      "Disqualified",
-    ],
+    enum: STATUSES,
     default: "Applied",
   },
   createdAt: { type: Date, default: Date.now },

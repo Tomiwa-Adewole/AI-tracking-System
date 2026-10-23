@@ -1,8 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CandidateInterviewKit from "./CandidateInterviewKit.jsx";
 
-export default function CandidateModal({ candidate, onClose, apiBaseUrl }) {
+export default function CandidateModal({
+  candidate,
+  onClose,
+  onCandidateUpdated,
+}) {
   const [isBlindMode, setIsBlindMode] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   if (!candidate) return null;
 
@@ -17,8 +29,17 @@ export default function CandidateModal({ candidate, onClose, apiBaseUrl }) {
     : candidate.email || "No email provided";
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-2xl w-full p-7 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-100">
+    <div
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Candidate profile"
+        onClick={(event) => event.stopPropagation()}
+        className="bg-white rounded-2xl max-w-2xl w-full p-7 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-100"
+      >
         <div className="flex justify-between items-start border-b border-slate-100 pb-4">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
@@ -61,6 +82,30 @@ export default function CandidateModal({ candidate, onClose, apiBaseUrl }) {
             </p>
           </div>
 
+          {candidate.failedMustHaves?.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-900">
+                Must-have criteria need review
+              </h4>
+              <p className="mt-1 text-xs text-amber-800">
+                These are AI-generated flags, not a final hiring decision.
+                Review the resume evidence before changing the candidate’s
+                stage.
+              </p>
+              <ul className="mt-2 space-y-2">
+                {candidate.failedMustHaves.map((item, index) => (
+                  <li
+                    key={`${item.requirement}-${index}`}
+                    className="text-xs text-amber-950"
+                  >
+                    <span className="font-semibold">{item.requirement}:</span>{" "}
+                    {item.evidence || "No supporting evidence provided."}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div>
             <h4 className="font-semibold text-slate-900 mb-1.5 text-xs uppercase tracking-wider">
               Extracted Skills
@@ -90,7 +135,7 @@ export default function CandidateModal({ candidate, onClose, apiBaseUrl }) {
             key={candidate._id}
             candidateId={candidate._id}
             existingQuestions={candidate.interviewQuestions || []}
-            apiBaseUrl={apiBaseUrl}
+            onQuestionsGenerated={onCandidateUpdated}
           />
         </div>
 

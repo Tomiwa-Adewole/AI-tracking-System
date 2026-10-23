@@ -1,13 +1,5 @@
 import { useState } from "react";
-
-const VALID_STATUSES = [
-  "Applied",
-  "Shortlisted",
-  "Interviewing",
-  "Hired",
-  "Rejected",
-  "Disqualified",
-];
+import { API_BASE_URL, apiFetch, STATUSES, readJson } from "../lib/config.js";
 
 function CandidateRow({
   candidate,
@@ -66,14 +58,20 @@ function CandidateRow({
             type="button"
             onClick={async (event) => {
               event.stopPropagation();
-              setEmailingStatus(candidate.status);
-              setEmailNotice(null);
+              if (
+                !window.confirm(
+                  `Send a ${candidate.status.toLowerCase()} email to ${candidate.email}?`,
+                )
+              )
+                return;
               const customNote =
                 candidate.status === "Rejected"
                   ? window.prompt(
                       "Optional feedback to include in the email:",
                     ) || ""
                   : "";
+              setEmailingStatus(candidate.status);
+              setEmailNotice(null);
               const result = await onSendStatusEmail(
                 candidate._id,
                 candidate.status,
@@ -121,7 +119,7 @@ function CandidateRow({
                       : "bg-slate-50 border-slate-200 text-slate-700"
           }`}
         >
-          {VALID_STATUSES.map((status) => (
+          {STATUSES.map((status) => (
             <option key={status} value={status}>
               {status}
             </option>
@@ -166,46 +164,29 @@ function CandidateRow({
 
 export default function CandidateLeaderboard({
   candidates,
+  loading,
   onSelectCandidate,
   onRefresh,
-  apiBaseUrl,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
-  const API_BASE_URL =
-    apiBaseUrl ||
-    import.meta.env.VITE_API_BASE_URL ||
-    "https://ai-tracking-system.onrender.com";
-
-  const handleStatusChange = async (candidateId, newStatus, e) => {
-    e.stopPropagation(); // Prevent opening the candidate modal
-    const sendsEmail = ["Shortlisted", "Rejected"].includes(newStatus);
-    const customNote =
-      newStatus === "Rejected"
-        ? window.prompt("Optional feedback to include in the email:") || ""
-        : "";
+  const handleStatusChange = async (candidateId, newStatus) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/ats/candidates/${candidateId}${
-          sendsEmail ? "/send-status-email" : "/status"
-        }`,
+      const response = await apiFetch(
+        `${API_BASE_URL}/api/ats/candidates/${candidateId}/status`,
         {
-          method: sendsEmail ? "POST" : "PATCH",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus, customNote }),
+          body: JSON.stringify({ status: newStatus }),
         },
       );
-      const data = await response.json();
+      const data = await readJson(response);
       if (!response.ok) {
         throw new Error(data.error || "Failed to update candidate status.");
       }
       if (onRefresh) onRefresh();
-      return {
-        message: sendsEmail
-          ? `Status updated and email sent to ${data.candidate?.email || "candidate"}.`
-          : "Candidate status updated.",
-      };
+      return { message: "Candidate status updated." };
     } catch (err) {
       console.error("Failed to update status:", err);
       return { error: err.message || "Failed to update candidate status." };
@@ -218,7 +199,7 @@ export default function CandidateLeaderboard({
     customNote = "",
   ) => {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${API_BASE_URL}/api/ats/candidates/${candidateId}/send-status-email`,
         {
           method: "POST",
@@ -226,11 +207,10 @@ export default function CandidateLeaderboard({
           body: JSON.stringify({ status, customNote }),
         },
       );
-      const result = await response.json();
+      const result = await readJson(response);
       if (!response.ok) {
         throw new Error(result.error || "Failed to send status email.");
       }
-      if (onRefresh) onRefresh();
       return { message: result.message || "Status email sent successfully." };
     } catch (err) {
       return { error: err.message || "Failed to send status email." };
@@ -240,15 +220,22 @@ export default function CandidateLeaderboard({
   // Filter candidates based on search input and status dropdown
   const filteredCandidates = candidates.filter((candidate) => {
     const matchesSearch =
-      candidate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (candidate.email &&
-        candidate.email.toLowerCase().includes(searchTerm.toLowerCase()));
+      (candidate.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (candidate.email || "").toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === "All" || candidate.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
+
+  if (loading && candidates.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-100 shadow-sm">
+        <p className="text-slate-500">Loading candidates…</p>
+      </div>
+    );
+  }
 
   if (!candidates || candidates.length === 0) {
     return (
@@ -295,12 +282,11 @@ export default function CandidateLeaderboard({
             className="text-xs font-semibold px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 transition bg-slate-50/50 text-slate-700 cursor-pointer"
           >
             <option value="All">All Stages</option>
-            <option value="Applied">Applied</option>
-            <option value="Shortlisted">Shortlisted</option>
-            <option value="Interviewing">Interviewing</option>
-            <option value="Hired">Hired</option>
-            <option value="Rejected">Rejected</option>
-            <option value="Disqualified">Disqualified</option>
+            {STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -312,11 +298,11 @@ export default function CandidateLeaderboard({
             No candidates match your search or filter criteria.
           </div>
         ) : (
-          filteredCandidates.map((candidate, index) => (
+          filteredCandidates.map((candidate) => (
             <CandidateRow
               key={candidate._id}
               candidate={candidate}
-              index={index}
+              index={candidates.indexOf(candidate)}
               onSelectCandidate={onSelectCandidate}
               onStatusChange={handleStatusChange}
               onSendStatusEmail={handleSendStatusEmail}

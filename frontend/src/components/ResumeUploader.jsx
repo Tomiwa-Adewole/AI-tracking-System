@@ -1,21 +1,18 @@
 import { useState, useRef } from "react";
+import {
+  API_BASE_URL,
+  MAX_RESUME_BYTES,
+  apiFetch,
+  readJson,
+} from "../lib/config.js";
 
-export default function ResumeUploader({
-  activeJob,
-  onUploadSuccess,
-  apiBaseUrl,
-}) {
+export default function ResumeUploader({ activeJob, onUploadSuccess }) {
   const [resumeFile, setResumeFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
+  const [error, setError] = useState("");
   const fileInputRef = useRef(null);
-
-  // Dynamic API Base URL fallback
-  const API_BASE_URL =
-    apiBaseUrl ||
-    import.meta.env.VITE_API_BASE_URL ||
-    "https://ai-tracking-system.onrender.com";
 
   const handleUploadResume = async (e) => {
     e.preventDefault();
@@ -23,12 +20,13 @@ export default function ResumeUploader({
 
     setUploading(true);
     setUploadResult(null);
+    setError("");
 
     const formData = new FormData();
     formData.append("resume", resumeFile);
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${API_BASE_URL}/api/ats/upload-resume/${activeJob._id || activeJob.id}`,
         {
           method: "POST",
@@ -36,18 +34,18 @@ export default function ResumeUploader({
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       if (response.ok) {
         setUploadResult(data.candidate);
-        alert("Resume analyzed and scored successfully by AI!");
         setResumeFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
         if (onUploadSuccess) onUploadSuccess();
       } else {
-        alert(data.error || "Failed to analyze resume.");
+        setError(data.error || "Failed to analyze resume.");
       }
     } catch (err) {
       console.error(err);
-      alert("Network error during resume upload.");
+      setError(err.message || "Network error during resume upload.");
     } finally {
       setUploading(false);
     }
@@ -67,11 +65,23 @@ export default function ResumeUploader({
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      if (file.type === "application/pdf") {
-        setResumeFile(file);
-      } else {
-        alert("Please upload a valid PDF resume file.");
-      }
+      validateFile(file);
+    }
+  };
+
+  const validateFile = (file) => {
+    if (
+      file.type !== "application/pdf" ||
+      !file.name.toLowerCase().endsWith(".pdf")
+    ) {
+      setError("Please choose a valid PDF resume file.");
+      setResumeFile(null);
+    } else if (file.size > MAX_RESUME_BYTES) {
+      setError("The resume must be 10 MB or smaller.");
+      setResumeFile(null);
+    } else {
+      setError("");
+      setResumeFile(file);
     }
   };
 
@@ -92,6 +102,14 @@ export default function ResumeUploader({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
+          role="button"
+          tabIndex={0}
           className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
             isDragging
               ? "border-emerald-500 bg-emerald-50/50 scale-[1.01]"
@@ -104,8 +122,9 @@ export default function ResumeUploader({
             type="file"
             ref={fileInputRef}
             accept="application/pdf"
+            onClick={(event) => event.stopPropagation()}
             onChange={(e) =>
-              e.target.files[0] && setResumeFile(e.target.files[0])
+              e.target.files[0] && validateFile(e.target.files[0])
             }
             className="hidden"
           />
@@ -162,6 +181,15 @@ export default function ResumeUploader({
         </button>
       </form>
 
+      {error && (
+        <p
+          role="alert"
+          className="mt-3 rounded-lg bg-rose-50 p-3 text-xs text-rose-700"
+        >
+          {error}
+        </p>
+      )}
+
       {uploadResult && (
         <div className="mt-6 p-5 border border-emerald-100 bg-emerald-50/50 rounded-2xl space-y-3">
           <div className="flex justify-between items-center">
@@ -190,7 +218,7 @@ export default function ResumeUploader({
               Extracted Skills:
             </span>
             <div className="flex flex-wrap gap-1 mt-1">
-              {uploadResult.parsedData?.skills.map((skill, idx) => (
+              {uploadResult.parsedData?.skills?.map((skill, idx) => (
                 <span
                   key={idx}
                   className="px-2 py-0.5 bg-white border border-emerald-200/60 text-emerald-800 text-xs rounded-md"
