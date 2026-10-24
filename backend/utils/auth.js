@@ -9,7 +9,9 @@ const configured = () => {
   const isSecretValid = secretLen >= 32;
 
   if (!hasEmail || !hasPassword || !isSecretValid) {
-    console.log(`[AUTH CONFIG DEBUG] email:${hasEmail}, password:${hasPassword}, secretLength:${secretLen} (needs >=32)`);
+    console.log(
+      `[AUTH CONFIG DEBUG] email:${hasEmail}, password:${hasPassword}, secretLength:${secretLen} (needs >=32)`,
+    );
     return false;
   }
   return true;
@@ -63,11 +65,9 @@ function verifyToken(token) {
 
 function login(req, res) {
   if (!configured()) {
-    return res
-      .status(503)
-      .json({
-        error: "Recruiter authentication is not configured on the server.",
-      });
+    return res.status(503).json({
+      error: "Recruiter authentication is not configured on the server.",
+    });
   }
 
   const { email, password } = req.body || {};
@@ -90,11 +90,9 @@ function login(req, res) {
 
 function authenticate(req, res, next) {
   if (!configured()) {
-    return res
-      .status(503)
-      .json({
-        error: "Recruiter authentication is not configured on the server.",
-      });
+    return res.status(503).json({
+      error: "Recruiter authentication is not configured on the server.",
+    });
   }
   const authorization = req.get("authorization") || "";
   const token = authorization.startsWith("Bearer ")
