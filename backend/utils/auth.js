@@ -2,13 +2,18 @@ const crypto = require("crypto");
 
 const TOKEN_TTL_SECONDS = 8 * 60 * 60;
 
-const configured = () =>
-  Boolean(
-    process.env.RECRUITER_EMAIL &&
-    process.env.RECRUITER_PASSWORD &&
-    (process.env.ATS_AUTH_SECRET || "").length >= 32,
-  );
+const configured = () => {
+  const hasEmail = Boolean(process.env.RECRUITER_EMAIL);
+  const hasPassword = Boolean(process.env.RECRUITER_PASSWORD);
+  const secretLen = (process.env.ATS_AUTH_SECRET || "").length;
+  const isSecretValid = secretLen >= 32;
 
+  if (!hasEmail || !hasPassword || !isSecretValid) {
+    console.log(`[AUTH CONFIG DEBUG] email:${hasEmail}, password:${hasPassword}, secretLength:${secretLen} (needs >=32)`);
+    return false;
+  }
+  return true;
+};
 const safeEqual = (left, right) => {
   const a = Buffer.from(String(left));
   const b = Buffer.from(String(right));
