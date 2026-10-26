@@ -48,7 +48,8 @@ export default function RecruiterLogin({ onSignedIn }) {
           </p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900">Sign in</h1>
           <p className="mt-2 text-sm text-slate-500">
-            Use the recruiter credentials configured for this server or try the demo mode below.
+            Use the recruiter credentials configured for this server or try the
+            demo mode below.
           </p>
         </div>
 
