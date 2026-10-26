@@ -7,6 +7,12 @@ export default function RecruiterLogin({ onSignedIn }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const handleDemoAutofill = () => {
+    setEmail("demo@ats.com");
+    setPassword("DemoPassword123!");
+    setError("");
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
@@ -42,9 +48,19 @@ export default function RecruiterLogin({ onSignedIn }) {
           </p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900">Sign in</h1>
           <p className="mt-2 text-sm text-slate-500">
-            Use the recruiter credentials configured for this server.
+            Use the recruiter credentials configured for this server or try the demo mode below.
           </p>
         </div>
+
+        {/* Demo Mode Autofill Button */}
+        <button
+          type="button"
+          onClick={handleDemoAutofill}
+          className="w-full rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 flex items-center justify-center gap-2"
+        >
+          <span>⚡</span> Autofill Demo Credentials
+        </button>
+
         {error && (
           <p
             role="alert"
